@@ -124,33 +124,29 @@ Guidelines for scoring:
 Be specific and actionable in your feedback. Each weak point and suggestion should be a clear, concise sentence.
 Return ONLY the JSON object, no markdown formatting, no code blocks, no additional text.`;
 
-    // Call Grok (xAI) API - OpenAI-compatible endpoint
-    const grokResponse = await fetch("https://api.x.ai/v1/chat/completions", {
+    // Call Grok (xAI) API using /v1/responses endpoint
+    // Exact same format as: curl https://api.x.ai/v1/responses -H "Authorization: Bearer $XAI_API_KEY"
+    const grokResponse = await fetch("https://api.x.ai/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "grok-3-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert resume reviewer. Always respond with valid JSON only, no markdown or code blocks."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
+        model: "grok-3-mini-fast",
+        input: prompt,
       }),
     });
 
     if (!grokResponse.ok) {
       const errorBody = await grokResponse.text();
-      console.error("Grok API error:", grokResponse.status, errorBody);
+      console.error(`Grok API error [${grokResponse.status}]:`, errorBody);
+      
+      if (grokResponse.status === 401 || grokResponse.status === 403) {
+        return res.status(500).json({
+          error: "API key is invalid or unauthorized. Please check XAI_API_KEY.",
+        });
+      }
       
       if (grokResponse.status === 429) {
         return res.status(429).json({
@@ -158,11 +154,29 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
         });
       }
       
-      return res.status(500).json({ error: "AI analysis service is temporarily unavailable. Please try again." });
+      return res.status(500).json({ error: `AI analysis failed (${grokResponse.status}): ${errorBody.substring(0, 300)}` });
     }
 
     const grokData = await grokResponse.json();
-    const responseText = grokData.choices?.[0]?.message?.content || "";
+    
+    // Extract text from /v1/responses format
+    let responseText = "";
+    // Format: { output: [{ type: "message", content: [{ type: "output_text", text: "..." }] }] }
+    if (grokData.output && Array.isArray(grokData.output)) {
+      for (const item of grokData.output) {
+        if (item.type === "message" && Array.isArray(item.content)) {
+          for (const block of item.content) {
+            if (block.type === "output_text" && block.text) {
+              responseText += block.text;
+            }
+          }
+        }
+      }
+    }
+    // Fallback: direct output_text field
+    if (!responseText && grokData.output_text) {
+      responseText = grokData.output_text;
+    }
 
     if (!responseText) {
       return res.status(500).json({ error: "AI returned an empty response. Please try again." });
