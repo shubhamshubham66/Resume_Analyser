@@ -4,3 +4,11 @@
 # React Router
 /.react-router/
 /build/
+
+# Environment
+.env
+.env.local
+.env.production.local
+
+# Vercel
+.vercel
