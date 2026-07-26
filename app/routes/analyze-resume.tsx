@@ -112,7 +112,7 @@ export default function AnalyzeResume() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            Powered by Google Gemini AI
+            Powered by Grok AI
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
             Analyze Your Resume

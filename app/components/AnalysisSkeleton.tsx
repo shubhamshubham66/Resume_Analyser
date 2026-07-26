@@ -22,7 +22,7 @@ export function AnalysisSkeleton({ status }: AnalysisSkeletonProps) {
         <p className="text-sm text-gray-500">
           {status === "uploading"
             ? "Sending your resume to the server"
-            : "Gemini AI is reviewing your resume. This may take a few seconds."}
+            : "Grok AI is reviewing your resume. This may take a few seconds."}
         </p>
       </div>
 
