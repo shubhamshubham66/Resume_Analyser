@@ -9,11 +9,13 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "@react-router/node": "^7.5.3",
     "@react-router/serve": "^7.5.3",
     "clsx": "^2.1.1",
     "isbot": "^5.1.27",
-    "pdfjs-dist": "^4.4.168",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.8",
