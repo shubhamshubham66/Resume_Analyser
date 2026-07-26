@@ -1,8 +1,14 @@
 import * as pdfjsLib from "pdfjs-dist";
 
-// Configure the worker - use CDN for reliable loading
+/**
+ * Configure the PDF.js worker.
+ *
+ * The worker file is copied from node_modules/pdfjs-dist/build/ to public/
+ * by the postinstall script (scripts/copy-pdf-worker.js).
+ * This guarantees the worker version always matches the API version exactly.
+ */
 if (typeof window !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 }
 
 export interface ParsedResume {
