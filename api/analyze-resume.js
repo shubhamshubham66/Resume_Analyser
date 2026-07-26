@@ -125,6 +125,7 @@ Be specific and actionable in your feedback. Each weak point and suggestion shou
 Return ONLY the JSON object, no markdown formatting, no code blocks, no additional text.`;
 
     // Call Grok (xAI) API - /v1/responses endpoint
+    // Using exact same format as: curl https://api.x.ai/v1/responses
     const grokResponse = await fetch("https://api.x.ai/v1/responses", {
       method: "POST",
       headers: {
@@ -134,7 +135,6 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
       body: JSON.stringify({
         model: "grok-3-mini-fast",
         input: prompt,
-        temperature: 0.3,
       }),
     });
 
@@ -142,6 +142,7 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
       const errorBody = await grokResponse.text();
       console.error(`Grok API error [${grokResponse.status}]:`, errorBody);
       
+      // Return the actual error so we can see what's wrong
       if (grokResponse.status === 401 || grokResponse.status === 403) {
         return res.status(500).json({
           error: "API key is invalid or unauthorized. Please check the XAI_API_KEY configuration.",
@@ -154,11 +155,12 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
         });
       }
       
-      return res.status(500).json({ error: `AI analysis failed (${grokResponse.status}). Please try again.` });
+      return res.status(500).json({ error: `AI analysis failed (${grokResponse.status}): ${errorBody.substring(0, 200)}` });
     }
 
     const grokData = await grokResponse.json();
-    // Extract text from the responses API format
+    
+    // Extract text from the /v1/responses format
     let responseText = "";
     if (grokData.output) {
       for (const item of grokData.output) {
@@ -171,6 +173,11 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
         }
       }
     }
+    // Fallback: try direct output_text at top level
+    if (!responseText && grokData.output_text) {
+      responseText = grokData.output_text;
+    }
+    // Fallback: try choices format (older API)
     if (!responseText && grokData.choices?.[0]?.message?.content) {
       responseText = grokData.choices[0].message.content;
     }
