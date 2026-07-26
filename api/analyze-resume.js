@@ -124,70 +124,56 @@ Guidelines for scoring:
 Be specific and actionable in your feedback. Each weak point and suggestion should be a clear, concise sentence.
 Return ONLY the JSON object, no markdown formatting, no code blocks, no additional text.`;
 
-    // Call Grok (xAI) API - OpenAI-compatible endpoint
-    // Try multiple models in order of preference
-    const modelsToTry = ["grok-3-mini-fast", "grok-2-latest", "grok-beta"];
-    let grokResponse = null;
-    let lastErrorMsg = "";
+    // Call Grok (xAI) API - /v1/responses endpoint
+    const grokResponse = await fetch("https://api.x.ai/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-3-mini-fast",
+        input: prompt,
+        temperature: 0.3,
+      }),
+    });
 
-    for (const modelName of modelsToTry) {
-      const attemptResponse = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert resume reviewer. Always respond with valid JSON only, no markdown or code blocks."
-            },
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 2000,
-        }),
-      });
-
-      if (attemptResponse.ok) {
-        grokResponse = attemptResponse;
-        break;
-      }
-
-      const errBody = await attemptResponse.text();
-      lastErrorMsg = `[${modelName}] ${attemptResponse.status}: ${errBody}`;
-      console.error(`Grok model ${modelName} failed:`, attemptResponse.status, errBody);
-
-      // If auth error, no point trying other models
-      if (attemptResponse.status === 401 || attemptResponse.status === 403) {
+    if (!grokResponse.ok) {
+      const errorBody = await grokResponse.text();
+      console.error(`Grok API error [${grokResponse.status}]:`, errorBody);
+      
+      if (grokResponse.status === 401 || grokResponse.status === 403) {
         return res.status(500).json({
-          error: "API key is invalid or unauthorized. Please check the XAI_API_KEY in Vercel environment variables.",
+          error: "API key is invalid or unauthorized. Please check the XAI_API_KEY configuration.",
         });
       }
-
-      // If rate limited, return immediately
-      if (attemptResponse.status === 429) {
+      
+      if (grokResponse.status === 429) {
         return res.status(429).json({
           error: "AI service is temporarily busy. Please try again in a few seconds.",
         });
       }
-
-      // Try next model for 404 (model not found) or 400 errors
-      continue;
-    }
-
-    if (!grokResponse) {
-      console.error("All Grok models failed. Last error:", lastErrorMsg);
-      return res.status(500).json({ error: `AI analysis failed. Error: ${lastErrorMsg}` });
+      
+      return res.status(500).json({ error: `AI analysis failed (${grokResponse.status}). Please try again.` });
     }
 
     const grokData = await grokResponse.json();
-    const responseText = grokData.choices?.[0]?.message?.content || "";
+    // Extract text from the responses API format
+    let responseText = "";
+    if (grokData.output) {
+      for (const item of grokData.output) {
+        if (item.type === "message" && item.content) {
+          for (const block of item.content) {
+            if (block.type === "output_text") {
+              responseText += block.text;
+            }
+          }
+        }
+      }
+    }
+    if (!responseText && grokData.choices?.[0]?.message?.content) {
+      responseText = grokData.choices[0].message.content;
+    }
 
     if (!responseText) {
       return res.status(500).json({ error: "AI returned an empty response. Please try again." });
