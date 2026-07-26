@@ -2,7 +2,9 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { ScoreGauge } from "~/components/ScoreGauge";
 import { WeakPoints } from "~/components/WeakPoints";
-import { SuggestionsList } from "~/components/SuggestionsList";
+import { SectionAnalysis } from "~/components/SectionAnalysis";
+import { ImprovementCards } from "~/components/ImprovementCards";
+import { KeywordsAnalysis } from "~/components/KeywordsAnalysis";
 import { AnalysisSkeleton } from "~/components/AnalysisSkeleton";
 
 export function meta() {
@@ -18,10 +20,13 @@ export function meta() {
 
 interface AnalysisResult {
   overall_score: number;
-  weak_points: string[];
+  summary: string;
+  section_analysis: { section: string; score: number; found: boolean; details: string; fix: string }[];
+  weak_points: { point: string; quote: string; impact: string }[];
   missing_skills_or_sections: string[];
   formatting_issues: string[];
-  suggestions: string[];
+  improvements: { area: string; current: string; suggested: string; why: string }[];
+  keywords_analysis: { found: string[]; missing: string[] };
 }
 
 export default function AnalyzeResume() {
@@ -266,14 +271,17 @@ export default function AnalyzeResume() {
                 <ScoreGauge score={result.overall_score} />
                 <div className="flex-1 text-center sm:text-left">
                   <h2 className="text-xl font-bold text-gray-900 mb-1">Resume Analysis Complete</h2>
-                  <p className="text-gray-600 text-sm">
-                    {result.overall_score >= 8
-                      ? "Excellent! Your resume is well-optimized and ready for ATS systems."
-                      : result.overall_score >= 6
-                      ? "Good foundation! A few improvements will significantly boost your chances."
-                      : result.overall_score >= 4
-                      ? "Needs improvement. Focus on the suggestions below to strengthen your resume."
-                      : "Your resume needs significant work. Follow the suggestions carefully."}
+                  {result.summary && (
+                    <p className="text-gray-600 text-sm mb-2">{result.summary}</p>
+                  )}
+                  <p className="text-gray-500 text-xs">
+                    {result.overall_score >= 80
+                      ? "Your resume is well-optimized for ATS systems."
+                      : result.overall_score >= 60
+                      ? "Good foundation! A few improvements will boost your chances."
+                      : result.overall_score >= 40
+                      ? "Needs improvement. Follow the suggestions below."
+                      : "Significant work needed. Review all sections carefully."}
                   </p>
                 </div>
                 <button
@@ -285,17 +293,55 @@ export default function AnalyzeResume() {
               </div>
             </div>
 
-            {/* Weak Points */}
-            {result.weak_points.length > 0 && (
-              <WeakPoints
-                title="Weak Points"
-                items={result.weak_points}
-                color="red"
-              />
+            {/* Section-wise Analysis */}
+            {result.section_analysis && result.section_analysis.length > 0 && (
+              <SectionAnalysis sections={result.section_analysis} />
+            )}
+
+            {/* Weak Points with quotes */}
+            {result.weak_points && result.weak_points.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <span className="text-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </span>
+                  Weak Points (with evidence)
+                  <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700">
+                    {result.weak_points.length} issues
+                  </span>
+                </h3>
+                <div className="space-y-3">
+                  {result.weak_points.map((wp, i) => (
+                    <div key={i} className="p-4 rounded-xl bg-red-50/50 border border-red-100">
+                      <p className="text-sm font-medium text-red-900 mb-1">{typeof wp === 'string' ? wp : wp.point}</p>
+                      {typeof wp !== 'string' && wp.quote && (
+                        <p className="text-xs text-red-700 bg-red-100/50 px-3 py-1.5 rounded-lg italic mb-1.5">
+                          From resume: "{wp.quote}"
+                        </p>
+                      )}
+                      {typeof wp !== 'string' && wp.impact && (
+                        <p className="text-xs text-red-600">⚡ Impact: {wp.impact}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* How to Improve (Before → After) */}
+            {result.improvements && result.improvements.length > 0 && (
+              <ImprovementCards improvements={result.improvements} />
+            )}
+
+            {/* Keywords Analysis */}
+            {result.keywords_analysis && (result.keywords_analysis.found?.length > 0 || result.keywords_analysis.missing?.length > 0) && (
+              <KeywordsAnalysis found={result.keywords_analysis.found || []} missing={result.keywords_analysis.missing || []} />
             )}
 
             {/* Missing Skills/Sections */}
-            {result.missing_skills_or_sections.length > 0 && (
+            {result.missing_skills_or_sections && result.missing_skills_or_sections.length > 0 && (
               <WeakPoints
                 title="Missing Skills or Sections"
                 items={result.missing_skills_or_sections}
@@ -304,17 +350,12 @@ export default function AnalyzeResume() {
             )}
 
             {/* Formatting Issues */}
-            {result.formatting_issues.length > 0 && (
+            {result.formatting_issues && result.formatting_issues.length > 0 && (
               <WeakPoints
                 title="Formatting Issues"
                 items={result.formatting_issues}
                 color="yellow"
               />
-            )}
-
-            {/* Suggestions */}
-            {result.suggestions.length > 0 && (
-              <SuggestionsList suggestions={result.suggestions} />
             )}
 
             {/* Analyzed File Info */}
