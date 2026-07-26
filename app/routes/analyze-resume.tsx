@@ -267,11 +267,11 @@ export default function AnalyzeResume() {
                 <div className="flex-1 text-center sm:text-left">
                   <h2 className="text-xl font-bold text-gray-900 mb-1">Resume Analysis Complete</h2>
                   <p className="text-gray-600 text-sm">
-                    {result.overall_score >= 8
+                    {result.overall_score >= 80
                       ? "Excellent! Your resume is well-optimized and ready for ATS systems."
-                      : result.overall_score >= 6
+                      : result.overall_score >= 60
                       ? "Good foundation! A few improvements will significantly boost your chances."
-                      : result.overall_score >= 4
+                      : result.overall_score >= 40
                       ? "Needs improvement. Focus on the suggestions below to strengthen your resume."
                       : "Your resume needs significant work. Follow the suggestions carefully."}
                   </p>

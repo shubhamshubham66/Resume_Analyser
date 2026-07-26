@@ -4,22 +4,23 @@ interface ScoreGaugeProps {
 
 export function ScoreGauge({ score }: ScoreGaugeProps) {
   const getColor = () => {
-    if (score >= 8) return { stroke: "stroke-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50" };
-    if (score >= 6) return { stroke: "stroke-blue-500", text: "text-blue-600", bg: "bg-blue-50" };
-    if (score >= 4) return { stroke: "stroke-amber-500", text: "text-amber-600", bg: "bg-amber-50" };
+    if (score >= 80) return { stroke: "stroke-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50" };
+    if (score >= 60) return { stroke: "stroke-blue-500", text: "text-blue-600", bg: "bg-blue-50" };
+    if (score >= 40) return { stroke: "stroke-amber-500", text: "text-amber-600", bg: "bg-amber-50" };
     return { stroke: "stroke-red-500", text: "text-red-600", bg: "bg-red-50" };
   };
 
   const getLabel = () => {
-    if (score >= 8) return "Excellent";
-    if (score >= 6) return "Good";
-    if (score >= 4) return "Fair";
+    if (score >= 90) return "Excellent";
+    if (score >= 70) return "Good";
+    if (score >= 50) return "Average";
+    if (score >= 30) return "Below Average";
     return "Needs Work";
   };
 
   const colors = getColor();
   const circumference = 2 * Math.PI * 42;
-  const strokeDashoffset = circumference - (score / 10) * circumference;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
     <div className="relative flex flex-col items-center flex-shrink-0">
@@ -53,7 +54,7 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`text-3xl font-bold ${colors.text}`}>{score}</span>
-          <span className="text-xs text-gray-500 font-medium">/10</span>
+          <span className="text-xs text-gray-500 font-medium">/100</span>
         </div>
       </div>
       <span className={`mt-2 text-xs font-semibold px-2.5 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
