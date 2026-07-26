@@ -67,11 +67,33 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "GROQ_API_KEY not set in environment variables." });
     }
 
-    const prompt = `Analyze this resume. Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
-{"overall_score":<number 1-10>,"weak_points":["..."],"missing_skills_or_sections":["..."],"formatting_issues":["..."],"suggestions":["..."]}
+    const prompt = `You are an expert resume reviewer and ATS specialist. Analyze this resume in EXTREME detail.
 
-Scoring: 9-10 excellent, 7-8 good, 5-6 average, 3-4 below average, 1-2 poor.
-Be specific and actionable.
+For each weakness, QUOTE specific text from the resume to show what's wrong. Give concrete rewrite examples.
+
+Return ONLY valid JSON (no markdown, no code blocks) with this structure:
+{
+  "overall_score": <number 1-100>,
+  "summary": "<2-3 sentence overall assessment>",
+  "section_analysis": [
+    {"section": "<section name>", "score": <1-100>, "found": true, "details": "<what's good/bad, quote specific content>", "fix": "<how to improve>"}
+  ],
+  "weak_points": [
+    {"point": "<specific weakness>", "quote": "<exact text from resume showing this>", "impact": "<why this hurts>"}
+  ],
+  "missing_skills_or_sections": ["<missing item with explanation>"],
+  "formatting_issues": ["<specific formatting problem>"],
+  "improvements": [
+    {"area": "<section name>", "current": "<what resume currently says>", "suggested": "<rewritten version>", "why": "<why better>"}
+  ],
+  "keywords_analysis": {
+    "found": ["<keywords found>"],
+    "missing": ["<keywords to add>"]
+  }
+}
+
+Scoring: 90-100 excellent, 70-89 good, 50-69 average, 30-49 below, 1-29 poor.
+Be VERY specific. Quote actual resume text. Give concrete rewrites.
 
 Resume:
 ${text}`;
@@ -88,11 +110,11 @@ ${text}`;
         body: JSON.stringify({
           model: "llama-3.1-8b-instant",
           messages: [
-            { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown." },
+            { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown. Be very detailed and quote specific text from the resume." },
             { role: "user", content: prompt }
           ],
           temperature: 0.3,
-          max_tokens: 2000,
+          max_tokens: 4000,
         }),
       });
     } catch (networkErr) {
@@ -126,11 +148,14 @@ ${text}`;
     }
 
     return res.status(200).json({
-      overall_score: Math.min(10, Math.max(1, Number(result.overall_score) || 5)),
-      weak_points: Array.isArray(result.weak_points) ? result.weak_points.filter(s => typeof s === "string").slice(0, 10) : [],
+      overall_score: Math.min(100, Math.max(1, Number(result.overall_score) || 50)),
+      summary: typeof result.summary === "string" ? result.summary : "",
+      section_analysis: Array.isArray(result.section_analysis) ? result.section_analysis.slice(0, 10) : [],
+      weak_points: Array.isArray(result.weak_points) ? result.weak_points.slice(0, 10) : [],
       missing_skills_or_sections: Array.isArray(result.missing_skills_or_sections) ? result.missing_skills_or_sections.filter(s => typeof s === "string").slice(0, 10) : [],
       formatting_issues: Array.isArray(result.formatting_issues) ? result.formatting_issues.filter(s => typeof s === "string").slice(0, 10) : [],
-      suggestions: Array.isArray(result.suggestions) ? result.suggestions.filter(s => typeof s === "string").slice(0, 15) : [],
+      improvements: Array.isArray(result.improvements) ? result.improvements.slice(0, 10) : [],
+      keywords_analysis: result.keywords_analysis || { found: [], missing: [] },
     });
   } catch (err) {
     return res.status(500).json({ error: "Server error: " + (err.message || String(err)) });
