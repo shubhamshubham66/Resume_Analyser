@@ -1,5 +1,7 @@
 /**
  * Vercel Serverless Function: POST /api/analyze-resume
+ * Uses Groq API (fast inference) for resume analysis.
+ * GROQ_API_KEY from process.env.
  */
 
 export const config = {
@@ -60,58 +62,55 @@ export default async function handler(req, res) {
 
     const text = extractedText.length > 12000 ? extractedText.substring(0, 12000) : extractedText;
 
-    const apiKey = process.env.XAI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: "XAI_API_KEY not set in environment variables." });
+      return res.status(500).json({ error: "GROQ_API_KEY not set in environment variables." });
     }
 
-    const prompt = `Analyze this resume. Return ONLY valid JSON with this structure: {"overall_score":<1-10>,"weak_points":["..."],"missing_skills_or_sections":["..."],"formatting_issues":["..."],"suggestions":["..."]}. No markdown, no code blocks, ONLY the JSON object.\n\nResume:\n${text}`;
+    const prompt = `Analyze this resume. Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
+{"overall_score":<number 1-10>,"weak_points":["..."],"missing_skills_or_sections":["..."],"formatting_issues":["..."],"suggestions":["..."]}
 
-    // Call xAI API
+Scoring: 9-10 excellent, 7-8 good, 5-6 average, 3-4 below average, 1-2 poor.
+Be specific and actionable.
+
+Resume:
+${text}`;
+
+    // Call Groq API (OpenAI-compatible)
     let apiResponse;
     try {
-      apiResponse = await fetch("https://api.x.ai/v1/responses", {
+      apiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "grok-3-mini-fast",
-          input: prompt,
+          model: "llama-3.1-8b-instant",
+          messages: [
+            { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 2000,
         }),
       });
     } catch (networkErr) {
-      return res.status(500).json({ error: "Network error reaching xAI: " + networkErr.message });
+      return res.status(500).json({ error: "Network error: " + networkErr.message });
     }
 
     if (!apiResponse.ok) {
       const errBody = await apiResponse.text();
-      return res.status(apiResponse.status).json({ 
-        error: "xAI API error (" + apiResponse.status + "): " + errBody.substring(0, 500) 
+      return res.status(apiResponse.status).json({
+        error: "Groq API error (" + apiResponse.status + "): " + errBody.substring(0, 500)
       });
     }
 
     const data = await apiResponse.json();
-
-    // Extract response text from xAI /v1/responses format
-    let responseText = "";
-    if (data.output && Array.isArray(data.output)) {
-      for (const item of data.output) {
-        if (item.type === "message" && Array.isArray(item.content)) {
-          for (const block of item.content) {
-            if (block.type === "output_text" && block.text) {
-              responseText += block.text;
-            }
-          }
-        }
-      }
-    }
-    if (!responseText && data.output_text) responseText = data.output_text;
-    if (!responseText && data.choices?.[0]?.message?.content) responseText = data.choices[0].message.content;
+    const responseText = data.choices?.[0]?.message?.content || "";
 
     if (!responseText) {
-      return res.status(500).json({ error: "Empty AI response. Debug: " + JSON.stringify(data).substring(0, 300) });
+      return res.status(500).json({ error: "Empty AI response." });
     }
 
     // Parse JSON
@@ -123,7 +122,7 @@ export default async function handler(req, res) {
       if (c.endsWith("```")) c = c.slice(0, -3);
       result = JSON.parse(c.trim());
     } catch (e) {
-      return res.status(500).json({ error: "Cannot parse AI response as JSON. Raw: " + responseText.substring(0, 200) });
+      return res.status(500).json({ error: "AI response is not valid JSON: " + responseText.substring(0, 200) });
     }
 
     return res.status(200).json({
