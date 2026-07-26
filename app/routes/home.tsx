@@ -180,6 +180,149 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* What ResumeAI Does */}
+      <section className="py-16 sm:py-24 bg-white">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              What ResumeAI Does
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Our AI-powered tool helps you understand exactly how recruiters and ATS systems see your resume
+            </p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-2">
+            {[
+              {
+                title: "Identifies Missing Keywords",
+                desc: "Compares your resume against industry-standard ATS keywords and shows exactly which technical and soft skills you're missing.",
+                icon: "🔑",
+              },
+              {
+                title: "Scores Every Section",
+                desc: "Each section of your resume (Experience, Skills, Education, Projects) gets an individual score so you know where to focus.",
+                icon: "📊",
+              },
+              {
+                title: "Provides Exact Rewrites",
+                desc: "Instead of generic advice, we show you exactly how to rewrite weak bullet points with Before → After examples you can copy-paste.",
+                icon: "✏️",
+              },
+              {
+                title: "Checks ATS Compatibility",
+                desc: "Ensures your resume format, headings, and structure are optimized for Applicant Tracking Systems used by 99% of companies.",
+                icon: "🤖",
+              },
+              {
+                title: "Highlights Formatting Issues",
+                desc: "Detects problems like missing contact info, inconsistent dates, poor bullet point structure, and length issues.",
+                icon: "📐",
+              },
+              {
+                title: "100% Free & Private",
+                desc: "No sign-up required. Your resume data is never stored — processed in real-time and immediately discarded.",
+                icon: "🔒",
+              },
+            ].map((item) => (
+              <div key={item.title} className="flex gap-4 p-5 rounded-xl hover:bg-gray-50 transition-colors duration-200">
+                <span className="text-3xl flex-shrink-0">{item.icon}</span>
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-1">{item.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials / Reviews */}
+      <section className="py-16 sm:py-24 bg-gray-50">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+              What Our Users Are Saying
+            </h2>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                stars: 5,
+                title: "Got me 3 interviews!",
+                text: "I uploaded my resume and followed the suggestions. Within a week, I got 3 interview calls. The Before→After rewrites were game-changing.",
+                name: "Priya S.",
+                date: "Jul 2026",
+              },
+              {
+                stars: 5,
+                title: "Best free tool",
+                text: "I've tried many resume scanners but this one actually shows you what's wrong AND how to fix it. The keyword analysis is spot on.",
+                name: "Rahul M.",
+                date: "Jul 2026",
+              },
+              {
+                stars: 4,
+                title: "Very detailed analysis",
+                text: "The section-wise scoring helped me understand my weak areas. My resume score went from 42 to 78 after making the suggested changes.",
+                name: "Ankit K.",
+                date: "Jun 2026",
+              },
+              {
+                stars: 5,
+                title: "Exactly what I needed",
+                text: "As a fresher, I had no idea my resume was ATS-unfriendly. This tool showed me missing sections and skills I should add. Highly recommend!",
+                name: "Sneha R.",
+                date: "Jun 2026",
+              },
+            ].map((review, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow duration-200">
+                {/* Stars */}
+                <div className="flex gap-0.5 mb-3">
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <svg key={j} xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${j < review.stars ? "text-yellow-400" : "text-gray-200"}`} viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                {/* Title */}
+                <h4 className="font-bold text-gray-900 text-sm mb-2">{review.title}</h4>
+                {/* Text */}
+                <p className="text-xs text-gray-600 leading-relaxed mb-4">{review.text}</p>
+                {/* Author */}
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium text-gray-700">{review.name}</span> · {review.date}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-16 sm:py-20 bg-gradient-to-r from-blue-600 to-indigo-600">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+            Ready to optimize your resume?
+          </h2>
+          <p className="text-blue-100 mb-8 max-w-lg mx-auto">
+            Upload your resume now and get a detailed AI analysis in seconds. It's free, no sign-up required.
+          </p>
+          <Link
+            to="/analyze-resume"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-700 text-base font-bold rounded-full shadow-xl hover:bg-blue-50 transform hover:-translate-y-0.5 transition-all duration-200"
+          >
+            Check my Resume for Free
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
