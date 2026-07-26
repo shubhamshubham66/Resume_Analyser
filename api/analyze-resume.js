@@ -100,7 +100,6 @@ export default async function handler(req, res) {
 
     // Initialize Gemini
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Craft the analysis prompt
     const prompt = `You are an expert resume reviewer and ATS (Applicant Tracking System) specialist. Analyze the following resume text and provide a detailed, structured evaluation.
@@ -129,8 +128,38 @@ Guidelines for scoring:
 Be specific and actionable in your feedback. Each weak point and suggestion should be a clear, concise sentence.
 Return ONLY the JSON object, no markdown formatting, no code blocks, no additional text.`;
 
-    // Call Gemini API
-    const geminiResult = await model.generateContent(prompt);
+    // Try models in order: gemini-2.0-flash first, fallback to gemini-1.5-flash
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    let geminiResult = null;
+    let lastError = null;
+
+    for (const modelName of models) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        geminiResult = await model.generateContent(prompt);
+        break; // Success, exit loop
+      } catch (err) {
+        lastError = err;
+        const errMsg = err.message || "";
+        // If rate limited, try next model
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Too Many Requests")) {
+          console.warn(`Rate limited on ${modelName}, trying next model...`);
+          continue;
+        }
+        // For other errors, throw immediately
+        throw err;
+      }
+    }
+
+    if (!geminiResult) {
+      // All models rate limited
+      const retryMatch = (lastError?.message || "").match(/retry in ([\d.]+)s/i);
+      const retrySeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 60;
+      return res.status(429).json({
+        error: `AI service is temporarily busy due to high demand. Please try again in ${retrySeconds} seconds.`,
+      });
+    }
+
     const responseText = geminiResult.response.text();
 
     // Parse the JSON response
@@ -173,7 +202,17 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
   } catch (error) {
     console.error("Resume analysis error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: `Analysis failed: ${message}` });
+    
+    // Handle rate limit errors with user-friendly message
+    if (message.includes("429") || message.includes("quota") || message.includes("Too Many Requests")) {
+      const retryMatch = message.match(/retry in ([\d.]+)s/i);
+      const retrySeconds = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 60;
+      return res.status(429).json({
+        error: `AI service is temporarily busy. Please wait ${retrySeconds} seconds and try again.`,
+      });
+    }
+    
+    return res.status(500).json({ error: `Analysis failed. Please try again in a moment.` });
   }
 }
 
