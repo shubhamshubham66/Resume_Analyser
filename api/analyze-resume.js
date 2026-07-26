@@ -132,7 +132,7 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "grok-3-mini",
+        model: "grok-2-latest",
         messages: [
           {
             role: "system",
@@ -150,15 +150,27 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
 
     if (!grokResponse.ok) {
       const errorBody = await grokResponse.text();
-      console.error("Grok API error:", grokResponse.status, errorBody);
+      console.error(`Grok API error [${grokResponse.status}]:`, errorBody);
+      
+      if (grokResponse.status === 401) {
+        return res.status(500).json({
+          error: "API key is invalid. Please check the XAI_API_KEY configuration.",
+        });
+      }
       
       if (grokResponse.status === 429) {
         return res.status(429).json({
           error: "AI service is temporarily busy. Please try again in a few seconds.",
         });
       }
+
+      if (grokResponse.status === 404) {
+        return res.status(500).json({
+          error: "AI model not found. Please contact the administrator.",
+        });
+      }
       
-      return res.status(500).json({ error: "AI analysis service is temporarily unavailable. Please try again." });
+      return res.status(500).json({ error: `AI analysis failed (${grokResponse.status}). Please try again.` });
     }
 
     const grokData = await grokResponse.json();
