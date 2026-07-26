@@ -2,13 +2,12 @@
  * Vercel Serverless Function: POST /api/analyze-resume
  *
  * Accepts a multipart form upload with a "resume" field (PDF or DOCX).
- * Extracts text from the file, sends it to Google Gemini for analysis,
+ * Extracts text from the file, sends it to Grok (xAI) API for analysis,
  * and returns structured JSON with score, weak points, and suggestions.
  *
- * The GEMINI_API_KEY is read from process.env — never exposed to the client.
+ * The XAI_API_KEY is read from process.env — never exposed to the client.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 import mammoth from "mammoth";
 
@@ -25,7 +24,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Parse multipart form data manually using Web API
+    // Parse multipart form data manually
     const contentType = req.headers["content-type"] || "";
     if (!contentType.includes("multipart/form-data")) {
       return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
@@ -91,16 +90,12 @@ export default async function handler(req, res) {
         ? extractedText.substring(0, maxChars) + "\n\n[Text truncated for analysis]"
         : extractedText;
 
-    // Get Gemini API key from environment (server-side only)
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Get xAI (Grok) API key from environment (server-side only)
+    const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
-      console.error("GEMINI_API_KEY not found in environment variables");
+      console.error("XAI_API_KEY not found in environment variables");
       return res.status(500).json({ error: "Server configuration error. Please contact the administrator." });
     }
-
-    // Initialize Gemini
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Craft the analysis prompt
     const prompt = `You are an expert resume reviewer and ATS (Applicant Tracking System) specialist. Analyze the following resume text and provide a detailed, structured evaluation.
@@ -129,9 +124,49 @@ Guidelines for scoring:
 Be specific and actionable in your feedback. Each weak point and suggestion should be a clear, concise sentence.
 Return ONLY the JSON object, no markdown formatting, no code blocks, no additional text.`;
 
-    // Call Gemini API
-    const geminiResult = await model.generateContent(prompt);
-    const responseText = geminiResult.response.text();
+    // Call Grok (xAI) API - OpenAI-compatible endpoint
+    const grokResponse = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-3-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert resume reviewer. Always respond with valid JSON only, no markdown or code blocks."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!grokResponse.ok) {
+      const errorBody = await grokResponse.text();
+      console.error("Grok API error:", grokResponse.status, errorBody);
+      
+      if (grokResponse.status === 429) {
+        return res.status(429).json({
+          error: "AI service is temporarily busy. Please try again in a few seconds.",
+        });
+      }
+      
+      return res.status(500).json({ error: "AI analysis service is temporarily unavailable. Please try again." });
+    }
+
+    const grokData = await grokResponse.json();
+    const responseText = grokData.choices?.[0]?.message?.content || "";
+
+    if (!responseText) {
+      return res.status(500).json({ error: "AI returned an empty response. Please try again." });
+    }
 
     // Parse the JSON response
     let analysisResult;
@@ -148,7 +183,7 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
       cleanedResponse = cleanedResponse.trim();
       analysisResult = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      console.error("Failed to parse Gemini response:", responseText);
+      console.error("Failed to parse Grok response:", responseText);
       return res.status(500).json({ error: "Failed to parse AI analysis response. Please try again." });
     }
 
@@ -173,7 +208,7 @@ Return ONLY the JSON object, no markdown formatting, no code blocks, no addition
   } catch (error) {
     console.error("Resume analysis error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: `Analysis failed: ${message}` });
+    return res.status(500).json({ error: `Analysis failed. Please try again in a moment.` });
   }
 }
 
