@@ -2,14 +2,10 @@
  * Vercel Serverless Function: POST /api/analyze-resume
  *
  * Accepts a multipart form upload with a "resume" field (PDF or DOCX).
- * Extracts text from the file, sends it to Grok (xAI) API for analysis,
- * and returns structured JSON with score, weak points, and suggestions.
+ * Extracts text, sends to Grok (xAI) for analysis, returns structured JSON.
  *
- * The XAI_API_KEY is read from process.env — never exposed to the client.
+ * XAI_API_KEY from process.env — never exposed to the client.
  */
-
-import pdf from "pdf-parse/lib/pdf-parse.js";
-import mammoth from "mammoth";
 
 export const config = {
   api: {
@@ -18,241 +14,200 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // Only allow POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    // Parse multipart form data manually
+    // Parse multipart form data
     const contentType = req.headers["content-type"] || "";
     if (!contentType.includes("multipart/form-data")) {
       return res.status(400).json({ error: "Content-Type must be multipart/form-data" });
     }
 
-    // Read raw body
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
     }
     const rawBody = Buffer.concat(chunks);
 
-    // Extract boundary
     const boundaryMatch = contentType.match(/boundary=(.+)/);
     if (!boundaryMatch) {
       return res.status(400).json({ error: "Invalid multipart form data" });
     }
-    const boundary = boundaryMatch[1];
 
-    // Parse multipart manually
-    const parts = parseMultipart(rawBody, boundary);
+    const parts = parseMultipart(rawBody, boundaryMatch[1]);
     const resumePart = parts.find((p) => p.name === "resume");
 
     if (!resumePart || !resumePart.data || resumePart.data.length === 0) {
-      return res.status(400).json({ error: "No resume file provided. Please upload a PDF or DOCX file." });
+      return res.status(400).json({ error: "No resume file provided." });
     }
 
-    // Validate file type
     const fileName = (resumePart.filename || "").toLowerCase();
     const isPDF = fileName.endsWith(".pdf");
     const isDOCX = fileName.endsWith(".docx");
 
     if (!isPDF && !isDOCX) {
-      return res.status(400).json({ error: "Invalid file type. Only PDF and DOCX files are accepted." });
+      return res.status(400).json({ error: "Invalid file type. Only PDF and DOCX accepted." });
     }
 
-    // Validate file size (5MB max)
     if (resumePart.data.length > 5 * 1024 * 1024) {
       return res.status(400).json({ error: "File size exceeds 5MB limit." });
     }
 
-    // Extract text from file
+    // Extract text
     let extractedText = "";
-
     if (isPDF) {
-      const pdfData = await pdf(resumePart.data);
+      const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+      const pdfData = await pdfParse(resumePart.data);
       extractedText = pdfData.text;
     } else if (isDOCX) {
-      const result = await mammoth.extractRawText({ buffer: resumePart.data });
+      const mammoth = await import("mammoth");
+      const result = await mammoth.default.extractRawText({ buffer: resumePart.data });
       extractedText = result.value;
     }
 
     if (!extractedText || extractedText.trim().length < 50) {
       return res.status(400).json({
-        error: "Could not extract enough text from the file. Please ensure your resume contains readable text (not just images).",
+        error: "Could not extract enough text. Ensure your resume has readable text.",
       });
     }
 
-    // Truncate very long resumes to avoid token limits
     const maxChars = 15000;
-    const textToAnalyze =
-      extractedText.length > maxChars
-        ? extractedText.substring(0, maxChars) + "\n\n[Text truncated for analysis]"
-        : extractedText;
+    const textToAnalyze = extractedText.length > maxChars
+      ? extractedText.substring(0, maxChars)
+      : extractedText;
 
-    // Get xAI (Grok) API key from environment (server-side only)
+    // Check API key
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
-      console.error("XAI_API_KEY not found in environment variables");
-      return res.status(500).json({ error: "Server configuration error. Please contact the administrator." });
+      return res.status(500).json({ error: "XAI_API_KEY not configured on server." });
     }
 
-    // Craft the analysis prompt
-    const prompt = `You are an expert resume reviewer and ATS (Applicant Tracking System) specialist. Analyze the following resume text and provide a detailed, structured evaluation.
+    // Build prompt
+    const prompt = `You are an expert resume reviewer and ATS specialist. Analyze this resume and return ONLY a JSON object (no markdown, no code blocks) with this exact structure:
+{"overall_score": <1-10>, "weak_points": ["..."], "missing_skills_or_sections": ["..."], "formatting_issues": ["..."], "suggestions": ["..."]}
 
-Resume Text:
----
-${textToAnalyze}
----
+Scoring: 9-10 excellent, 7-8 good, 5-6 average, 3-4 below average, 1-2 poor.
+Be specific and actionable. Return ONLY valid JSON.
 
-Analyze this resume and return your evaluation as a JSON object with EXACTLY this structure:
-{
-  "overall_score": <number from 1 to 10>,
-  "weak_points": [<array of strings describing weak areas or areas needing improvement>],
-  "missing_skills_or_sections": [<array of strings listing missing important skills, keywords, or standard resume sections>],
-  "formatting_issues": [<array of strings describing any formatting problems detected>],
-  "suggestions": [<array of specific, actionable suggestions to improve the resume>]
-}
+Resume:
+${textToAnalyze}`;
 
-Guidelines for scoring:
-- 9-10: Excellent, ATS-optimized, strong impact statements, complete sections
-- 7-8: Good, minor improvements needed
-- 5-6: Average, several areas need attention
-- 3-4: Below average, significant improvements required
-- 1-2: Poor, major restructuring needed
-
-Be specific and actionable in your feedback. Each weak point and suggestion should be a clear, concise sentence.
-Return ONLY the JSON object, no markdown formatting, no code blocks, no additional text.`;
-
-    // Call Grok (xAI) API - OpenAI-compatible endpoint
-    const grokResponse = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "grok-3-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert resume reviewer. Always respond with valid JSON only, no markdown or code blocks."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    });
+    // Call xAI Grok API
+    let grokResponse;
+    try {
+      grokResponse = await fetch("https://api.x.ai/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "grok-3-mini-fast",
+          input: prompt,
+        }),
+      });
+    } catch (fetchErr) {
+      console.error("Fetch to xAI failed:", fetchErr);
+      return res.status(500).json({ error: `Cannot reach AI service: ${fetchErr.message}` });
+    }
 
     if (!grokResponse.ok) {
-      const errorBody = await grokResponse.text();
-      console.error("Grok API error:", grokResponse.status, errorBody);
-      
-      if (grokResponse.status === 429) {
-        return res.status(429).json({
-          error: "AI service is temporarily busy. Please try again in a few seconds.",
-        });
-      }
-      
-      return res.status(500).json({ error: "AI analysis service is temporarily unavailable. Please try again." });
+      const errText = await grokResponse.text();
+      console.error(`xAI API [${grokResponse.status}]:`, errText);
+      return res.status(500).json({ 
+        error: `AI API error (${grokResponse.status}): ${errText.substring(0, 300)}` 
+      });
     }
 
     const grokData = await grokResponse.json();
-    const responseText = grokData.choices?.[0]?.message?.content || "";
+
+    // Parse response - try multiple formats
+    let responseText = "";
+    
+    // Format 1: output[].content[].text
+    if (grokData.output && Array.isArray(grokData.output)) {
+      for (const item of grokData.output) {
+        if (item.type === "message" && Array.isArray(item.content)) {
+          for (const block of item.content) {
+            if (block.type === "output_text" && block.text) {
+              responseText += block.text;
+            }
+          }
+        }
+      }
+    }
+    // Format 2: output_text direct
+    if (!responseText && grokData.output_text) {
+      responseText = grokData.output_text;
+    }
+    // Format 3: choices format
+    if (!responseText && grokData.choices?.[0]?.message?.content) {
+      responseText = grokData.choices[0].message.content;
+    }
 
     if (!responseText) {
-      return res.status(500).json({ error: "AI returned an empty response. Please try again." });
+      console.error("Empty response from xAI. Full response:", JSON.stringify(grokData).substring(0, 500));
+      return res.status(500).json({ error: "AI returned empty response. Raw: " + JSON.stringify(grokData).substring(0, 200) });
     }
 
-    // Parse the JSON response
+    // Parse JSON from response
     let analysisResult;
     try {
-      let cleanedResponse = responseText.trim();
-      if (cleanedResponse.startsWith("```json")) {
-        cleanedResponse = cleanedResponse.slice(7);
-      } else if (cleanedResponse.startsWith("```")) {
-        cleanedResponse = cleanedResponse.slice(3);
-      }
-      if (cleanedResponse.endsWith("```")) {
-        cleanedResponse = cleanedResponse.slice(0, -3);
-      }
-      cleanedResponse = cleanedResponse.trim();
-      analysisResult = JSON.parse(cleanedResponse);
-    } catch (parseError) {
-      console.error("Failed to parse Grok response:", responseText);
-      return res.status(500).json({ error: "Failed to parse AI analysis response. Please try again." });
+      let cleaned = responseText.trim();
+      if (cleaned.startsWith("```json")) cleaned = cleaned.slice(7);
+      else if (cleaned.startsWith("```")) cleaned = cleaned.slice(3);
+      if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+      cleaned = cleaned.trim();
+      analysisResult = JSON.parse(cleaned);
+    } catch (e) {
+      console.error("JSON parse failed. Response:", responseText.substring(0, 500));
+      return res.status(500).json({ error: "Failed to parse AI response as JSON." });
     }
 
-    // Validate and sanitize the response structure
-    const sanitized = {
+    // Sanitize
+    return res.status(200).json({
       overall_score: Math.min(10, Math.max(1, Number(analysisResult.overall_score) || 5)),
       weak_points: Array.isArray(analysisResult.weak_points)
-        ? analysisResult.weak_points.filter((s) => typeof s === "string").slice(0, 10)
-        : [],
+        ? analysisResult.weak_points.filter(s => typeof s === "string").slice(0, 10) : [],
       missing_skills_or_sections: Array.isArray(analysisResult.missing_skills_or_sections)
-        ? analysisResult.missing_skills_or_sections.filter((s) => typeof s === "string").slice(0, 10)
-        : [],
+        ? analysisResult.missing_skills_or_sections.filter(s => typeof s === "string").slice(0, 10) : [],
       formatting_issues: Array.isArray(analysisResult.formatting_issues)
-        ? analysisResult.formatting_issues.filter((s) => typeof s === "string").slice(0, 10)
-        : [],
+        ? analysisResult.formatting_issues.filter(s => typeof s === "string").slice(0, 10) : [],
       suggestions: Array.isArray(analysisResult.suggestions)
-        ? analysisResult.suggestions.filter((s) => typeof s === "string").slice(0, 15)
-        : [],
-    };
+        ? analysisResult.suggestions.filter(s => typeof s === "string").slice(0, 15) : [],
+    });
 
-    return res.status(200).json(sanitized);
   } catch (error) {
-    console.error("Resume analysis error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: `Analysis failed. Please try again in a moment.` });
+    console.error("Unhandled error:", error);
+    return res.status(500).json({ error: `Server error: ${error.message || "Unknown"}` });
   }
 }
 
-/**
- * Parse multipart form data from a buffer
- */
 function parseMultipart(body, boundary) {
   const parts = [];
-  const boundaryBuffer = Buffer.from(`--${boundary}`);
-  const endBoundary = Buffer.from(`--${boundary}--`);
-
-  let start = body.indexOf(boundaryBuffer) + boundaryBuffer.length + 2; // skip \r\n
+  const boundaryBuf = Buffer.from(`--${boundary}`);
+  let start = body.indexOf(boundaryBuf) + boundaryBuf.length + 2;
 
   while (start < body.length) {
-    const nextBoundary = body.indexOf(boundaryBuffer, start);
-    if (nextBoundary === -1) break;
+    const next = body.indexOf(boundaryBuf, start);
+    if (next === -1) break;
 
-    const partData = body.slice(start, nextBoundary - 2); // -2 for \r\n before boundary
+    const partData = body.slice(start, next - 2);
     const headerEnd = partData.indexOf("\r\n\r\n");
+    if (headerEnd === -1) { start = next + boundaryBuf.length + 2; continue; }
 
-    if (headerEnd === -1) {
-      start = nextBoundary + boundaryBuffer.length + 2;
-      continue;
-    }
-
-    const headerStr = partData.slice(0, headerEnd).toString("utf-8");
+    const headers = partData.slice(0, headerEnd).toString("utf-8");
     const content = partData.slice(headerEnd + 4);
-
-    const nameMatch = headerStr.match(/name="([^"]+)"/);
-    const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+    const nameMatch = headers.match(/name="([^"]+)"/);
+    const fileMatch = headers.match(/filename="([^"]+)"/);
 
     if (nameMatch) {
-      parts.push({
-        name: nameMatch[1],
-        filename: filenameMatch ? filenameMatch[1] : null,
-        data: content,
-      });
+      parts.push({ name: nameMatch[1], filename: fileMatch?.[1] || null, data: content });
     }
-
-    start = nextBoundary + boundaryBuffer.length + 2;
-
-    // Check if we hit the end boundary
-    if (body.indexOf(endBoundary, nextBoundary) === nextBoundary) break;
+    start = next + boundaryBuf.length + 2;
+    if (body.indexOf(Buffer.from(`--${boundary}--`), next) === next) break;
   }
-
   return parts;
 }
