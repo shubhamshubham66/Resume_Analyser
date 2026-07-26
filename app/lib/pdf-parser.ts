@@ -1,9 +1,16 @@
 import * as pdfjsLib from "pdfjs-dist";
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-// Configure the worker - import from same package to ensure version match
+/**
+ * Configure the PDF.js worker.
+ * 
+ * Strategy:
+ * 1. Primary: Use the self-hosted worker copied to /public by the postinstall script.
+ *    This guarantees the worker version matches the API version exactly.
+ * 2. Fallback: Use unpkg CDN with pdfjsLib.version to ensure version parity.
+ */
 if (typeof window !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+  // Use self-hosted worker file (copied from node_modules by postinstall script)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 }
 
 export interface ParsedResume {

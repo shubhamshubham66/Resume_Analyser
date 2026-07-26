@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/copy-pdf-worker.js",
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
@@ -13,7 +14,7 @@
     "@react-router/serve": "^7.5.3",
     "clsx": "^2.1.1",
     "isbot": "^5.1.27",
-    "pdfjs-dist": "^4.10.38",
+    "pdfjs-dist": "4.10.38",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.8",
