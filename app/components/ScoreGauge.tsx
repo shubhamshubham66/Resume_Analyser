@@ -25,32 +25,10 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
   return (
     <div className="relative flex flex-col items-center flex-shrink-0">
       <div className={`rounded-full p-3 ${colors.bg}`}>
-        <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
-          {/* Background track */}
-          <circle
-            cx="50"
-            cy="50"
-            r="42"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="8"
-            className="text-gray-200"
-          />
-          {/* Score arc */}
-          <circle
-            cx="50"
-            cy="50"
-            r="42"
-            fill="none"
-            strokeWidth="8"
-            strokeLinecap="round"
-            className={colors.stroke}
-            style={{
-              strokeDasharray: circumference,
-              strokeDashoffset,
-              transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)",
-            }}
-          />
+        <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="7" className="text-gray-200" />
+          <circle cx="50" cy="50" r="42" fill="none" strokeWidth="7" strokeLinecap="round" className={colors.stroke}
+            style={{ strokeDasharray: circumference, strokeDashoffset, transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`text-3xl font-bold ${colors.text}`}>{score}</span>

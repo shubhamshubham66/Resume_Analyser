@@ -67,11 +67,12 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "GROQ_API_KEY not set in environment variables." });
     }
 
-    const prompt = `Analyze this resume. Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
-{"overall_score":<number 1-100>,"weak_points":["..."],"missing_skills_or_sections":["..."],"formatting_issues":["..."],"suggestions":["..."]}
+    const prompt = `You are an expert resume reviewer and ATS specialist. Analyze this resume in detail. Quote specific text from the resume. Give concrete rewrite examples.
 
-Scoring (out of 100): 90-100 excellent, 70-89 good, 50-69 average, 30-49 below average, 1-29 poor.
-Be specific and actionable.
+Return ONLY valid JSON (no markdown, no code blocks):
+{"overall_score":<1-100>,"summary":"<assessment>","section_analysis":[{"section":"<name>","score":<1-100>,"found":true,"details":"<issues>","fix":"<how to fix>"}],"weak_points":[{"point":"<weakness>","quote":"<text from resume>","impact":"<why bad>"}],"missing_skills_or_sections":["<missing>"],"formatting_issues":["<issue>"],"improvements":[{"area":"<section>","current":"<current text>","suggested":"<rewrite>","why":"<reason>"}],"keywords_analysis":{"found":["<keyword>"],"missing":["<keyword>"]}}
+
+Score: 90-100 excellent, 70-89 good, 50-69 average, 30-49 below, 1-29 poor. Be VERY specific.
 
 Resume:
 ${text}`;
@@ -92,7 +93,7 @@ ${text}`;
             { role: "user", content: prompt }
           ],
           temperature: 0.3,
-          max_tokens: 2000,
+          max_tokens: 4000,
         }),
       });
     } catch (networkErr) {
@@ -127,10 +128,13 @@ ${text}`;
 
     return res.status(200).json({
       overall_score: Math.min(100, Math.max(1, Number(result.overall_score) || 50)),
-      weak_points: Array.isArray(result.weak_points) ? result.weak_points.filter(s => typeof s === "string").slice(0, 10) : [],
+      summary: typeof result.summary === "string" ? result.summary : "",
+      section_analysis: Array.isArray(result.section_analysis) ? result.section_analysis.slice(0, 10) : [],
+      weak_points: Array.isArray(result.weak_points) ? result.weak_points.slice(0, 10) : [],
       missing_skills_or_sections: Array.isArray(result.missing_skills_or_sections) ? result.missing_skills_or_sections.filter(s => typeof s === "string").slice(0, 10) : [],
       formatting_issues: Array.isArray(result.formatting_issues) ? result.formatting_issues.filter(s => typeof s === "string").slice(0, 10) : [],
-      suggestions: Array.isArray(result.suggestions) ? result.suggestions.filter(s => typeof s === "string").slice(0, 15) : [],
+      improvements: Array.isArray(result.improvements) ? result.improvements.slice(0, 10) : [],
+      keywords_analysis: result.keywords_analysis || { found: [], missing: [] },
     });
   } catch (err) {
     return res.status(500).json({ error: "Server error: " + (err.message || String(err)) });
