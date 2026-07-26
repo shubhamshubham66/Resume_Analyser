@@ -4,8 +4,12 @@
  * GROQ_API_KEY from process.env.
  */
 
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import mammoth from "mammoth";
+
 export const config = {
   api: { bodyParser: false },
+  maxDuration: 60,
 };
 
 export default async function handler(req, res) {
@@ -47,11 +51,9 @@ export default async function handler(req, res) {
     // Extract text
     let extractedText = "";
     if (isPDF) {
-      const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
       const d = await pdfParse(resumePart.data);
       extractedText = d.text;
     } else {
-      const mammoth = (await import("mammoth")).default;
       const r = await mammoth.extractRawText({ buffer: resumePart.data });
       extractedText = r.value;
     }

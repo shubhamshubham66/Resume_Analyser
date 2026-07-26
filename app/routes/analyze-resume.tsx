@@ -20,13 +20,13 @@ export function meta() {
 
 interface AnalysisResult {
   overall_score: number;
-  summary: string;
-  section_analysis: { section: string; score: number; found: boolean; details: string; fix: string }[];
-  weak_points: { point: string; quote: string; impact: string }[] | string[];
-  missing_skills_or_sections: string[];
-  formatting_issues: string[];
-  improvements: { area: string; current: string; suggested: string; why: string }[];
-  keywords_analysis: { found: string[]; missing: string[] };
+  summary?: string;
+  section_analysis?: { section: string; score: number; found: boolean; details: string; fix: string }[];
+  weak_points?: any[];
+  missing_skills_or_sections?: string[];
+  formatting_issues?: string[];
+  improvements?: { area: string; current: string; suggested: string; why: string }[];
+  keywords_analysis?: { found: string[]; missing: string[] };
 }
 
 export default function AnalyzeResume() {
