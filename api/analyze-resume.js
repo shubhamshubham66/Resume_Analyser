@@ -89,7 +89,7 @@ ${text}`;
           "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "openai/gpt-oss-20b",
           messages: [
             { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown." },
             { role: "user", content: prompt }
