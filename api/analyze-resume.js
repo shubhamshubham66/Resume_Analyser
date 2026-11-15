@@ -81,9 +81,21 @@ ${text}`;
 
     // Call Groq API (OpenAI-compatible). Each model has its own rate limit,
     // so on 429 / capacity errors we fall through to the next model.
-    const MODELS = (process.env.GROQ_MODELS ||
+    let MODELS = (process.env.GROQ_MODELS ||
       "openai/gpt-oss-20b,llama-3.3-70b-versatile,openai/gpt-oss-120b,llama-3.1-8b-instant")
       .split(",").map((m) => m.trim()).filter(Boolean);
+
+    // Only try models this account can actually use (avoids model_not_found).
+    try {
+      const mr = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (mr.ok) {
+        const ids = new Set(((await mr.json()).data || []).map((m) => m.id));
+        const usable = MODELS.filter((m) => ids.has(m));
+        if (usable.length) MODELS = usable;
+      }
+    } catch { /* keep static list */ }
 
     let apiResponse = null;
     let lastStatus = 0;
