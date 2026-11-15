@@ -64,9 +64,10 @@ export default async function handler(req, res) {
 
     const text = extractedText.length > 9000 ? extractedText.substring(0, 9000) : extractedText;
 
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "GROQ_API_KEY not set in environment variables." });
+    const groqKey = process.env.GROQ_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!groqKey && !geminiKey) {
+      return res.status(500).json({ error: "No AI key configured (set GEMINI_API_KEY and/or GROQ_API_KEY)." });
     }
 
     const prompt = `You are an expert resume reviewer and ATS specialist. Analyze this resume in detail. Quote specific text from the resume. Give concrete rewrite examples.
@@ -79,73 +80,87 @@ Score: 90-100 excellent, 70-89 good, 50-69 average, 30-49 below, 1-29 poor. Be V
 Resume:
 ${text}`;
 
-    // Call Groq API (OpenAI-compatible). Each model has its own rate limit,
-    // so on 429 / capacity errors we fall through to the next model.
-    let MODELS = (process.env.GROQ_MODELS ||
-      "openai/gpt-oss-20b,llama-3.3-70b-versatile,openai/gpt-oss-120b,llama-3.1-8b-instant")
-      .split(",").map((m) => m.trim()).filter(Boolean);
+    const SYSTEM = "You are an expert resume reviewer. Return ONLY valid JSON, no markdown.";
 
-    // Only try models this account can actually use (avoids model_not_found).
-    try {
-      const mr = await fetch("https://api.groq.com/openai/v1/models", {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (mr.ok) {
-        const ids = new Set(((await mr.json()).data || []).map((m) => m.id));
-        const usable = MODELS.filter((m) => ids.has(m));
-        if (usable.length) MODELS = usable;
+    // Gemini first (free tier), Groq as backup. Each model has its own limit,
+    // so on rate-limit / overload / model errors we move on to the next one.
+    async function callGemini() {
+      const models = (process.env.GEMINI_MODELS || "gemini-2.5-flash,gemini-2.5-flash-lite")
+        .split(",").map((m) => m.trim()).filter(Boolean);
+      for (const model of models) {
+        try {
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: SYSTEM }] },
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                  temperature: 0.3,
+                  maxOutputTokens: 4000,
+                  responseMimeType: "application/json",
+                },
+              }),
+            }
+          );
+          if (!r.ok) continue;
+          const d = await r.json();
+          const t = d.candidates?.[0]?.content?.parts?.map((x) => x.text || "").join("") || "";
+          if (t) return t;
+        } catch { /* try next model */ }
       }
-    } catch { /* keep static list */ }
-
-    let apiResponse = null;
-    let lastStatus = 0;
-    for (const model of MODELS) {
-      try {
-        apiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown." },
-              { role: "user", content: prompt }
-            ],
-            temperature: 0.3,
-            max_tokens: 3500,
-          }),
-        });
-      } catch (networkErr) {
-        lastStatus = 0;
-        continue;
-      }
-      if (apiResponse.ok) break;
-      lastStatus = apiResponse.status;
-      // Retry next model only for rate-limit / overload / model errors
-      if ([429, 413, 498, 503, 400, 404].includes(apiResponse.status)) {
-        apiResponse = null;
-        continue;
-      }
-      break;
+      return "";
     }
 
-    if (!apiResponse) {
-      return res.status(lastStatus === 0 ? 502 : 429).json({
+    async function callGroq() {
+      let models = (process.env.GROQ_MODELS ||
+        "openai/gpt-oss-20b,llama-3.3-70b-versatile,openai/gpt-oss-120b,llama-3.1-8b-instant")
+        .split(",").map((m) => m.trim()).filter(Boolean);
+      try {
+        const mr = await fetch("https://api.groq.com/openai/v1/models", {
+          headers: { Authorization: `Bearer ${groqKey}` },
+        });
+        if (mr.ok) {
+          const ids = new Set(((await mr.json()).data || []).map((m) => m.id));
+          const usable = models.filter((m) => ids.has(m));
+          if (usable.length) models = usable;
+        }
+      } catch { /* keep static list */ }
+      for (const model of models) {
+        try {
+          const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: SYSTEM },
+                { role: "user", content: prompt },
+              ],
+              temperature: 0.3,
+              max_tokens: 3500,
+            }),
+          });
+          if (!r.ok) continue;
+          const d = await r.json();
+          const t = d.choices?.[0]?.message?.content || "";
+          if (t) return t;
+        } catch { /* try next model */ }
+      }
+      return "";
+    }
+
+    let responseText = "";
+    if (geminiKey) responseText = await callGemini();
+    if (!responseText && groqKey) responseText = await callGroq();
+
+    if (!responseText) {
+      return res.status(429).json({
         error: "Our AI is busy right now (usage limit reached). Please try again in a minute.",
       });
     }
-
-    if (!apiResponse.ok) {
-      const errBody = await apiResponse.text();
-      return res.status(apiResponse.status).json({
-        error: "Groq API error (" + apiResponse.status + "): " + errBody.substring(0, 300)
-      });
-    }
-
-    const data = await apiResponse.json();
-    const responseText = data.choices?.[0]?.message?.content || "";
 
     if (!responseText) {
       return res.status(500).json({ error: "Empty AI response." });
