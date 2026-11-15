@@ -62,7 +62,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Cannot extract text from file." });
     }
 
-    const text = extractedText.length > 12000 ? extractedText.substring(0, 12000) : extractedText;
+    const text = extractedText.length > 9000 ? extractedText.substring(0, 9000) : extractedText;
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
@@ -79,33 +79,56 @@ Score: 90-100 excellent, 70-89 good, 50-69 average, 30-49 below, 1-29 poor. Be V
 Resume:
 ${text}`;
 
-    // Call Groq API (OpenAI-compatible)
-    let apiResponse;
-    try {
-      apiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-oss-20b",
-          messages: [
-            { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown." },
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 4000,
-        }),
+    // Call Groq API (OpenAI-compatible). Each model has its own rate limit,
+    // so on 429 / capacity errors we fall through to the next model.
+    const MODELS = (process.env.GROQ_MODELS ||
+      "openai/gpt-oss-20b,llama-3.3-70b-versatile,openai/gpt-oss-120b,llama-3.1-8b-instant")
+      .split(",").map((m) => m.trim()).filter(Boolean);
+
+    let apiResponse = null;
+    let lastStatus = 0;
+    for (const model of MODELS) {
+      try {
+        apiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: "You are an expert resume reviewer. Return ONLY valid JSON, no markdown." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 3500,
+          }),
+        });
+      } catch (networkErr) {
+        lastStatus = 0;
+        continue;
+      }
+      if (apiResponse.ok) break;
+      lastStatus = apiResponse.status;
+      // Retry next model only for rate-limit / overload / model errors
+      if ([429, 413, 498, 503, 400, 404].includes(apiResponse.status)) {
+        apiResponse = null;
+        continue;
+      }
+      break;
+    }
+
+    if (!apiResponse) {
+      return res.status(lastStatus === 0 ? 502 : 429).json({
+        error: "Our AI is busy right now (usage limit reached). Please try again in a minute.",
       });
-    } catch (networkErr) {
-      return res.status(500).json({ error: "Network error: " + networkErr.message });
     }
 
     if (!apiResponse.ok) {
       const errBody = await apiResponse.text();
       return res.status(apiResponse.status).json({
-        error: "Groq API error (" + apiResponse.status + "): " + errBody.substring(0, 500)
+        error: "Groq API error (" + apiResponse.status + "): " + errBody.substring(0, 300)
       });
     }
 
