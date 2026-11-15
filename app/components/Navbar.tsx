@@ -70,6 +70,16 @@ export function Navbar() {
               </svg>
               Analyze Resume
             </Link>
+            <Link
+              to="/search"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive("/search")
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
+            >
+              Search
+            </Link>
           </div>
 
           {/* CTA Button - Desktop */}
