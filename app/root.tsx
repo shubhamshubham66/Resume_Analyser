@@ -19,7 +19,7 @@ export const links: LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Crimson+Pro:wght@400;600;700&display=swap",
   },
 ];
 
@@ -37,21 +37,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1">
           {children}
         </main>
-        <footer className="bg-gray-900 text-gray-300">
+        <footer className="bg-[#0D1526] text-gray-300">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12">
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
               {/* Brand */}
               <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <span className="text-lg font-bold text-white">ResumeAI</span>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <span
+                    aria-hidden="true"
+                    className="grid h-9 w-9 shrink-0 content-center justify-items-start gap-[3px] rounded-[4px] border border-[#C2283C]/60 bg-[#1C2942] pl-[7px]"
+                  >
+                    <span className="block h-[2px] w-[18px] rounded-full bg-white/70" />
+                    <span className="block h-[2px] w-[13px] rounded-full bg-white/70" />
+                    <span className="block h-[2px] w-[9px] rounded-full bg-[#C2283C]" />
+                  </span>
+                  <span className="font-serif text-[22px] font-semibold leading-none tracking-[-0.01em] text-white">
+                    ResumeAI
+                  </span>
                 </div>
                 <p className="text-sm text-gray-400 leading-relaxed">
-                  Free AI-powered resume analyzer. Get your ATS score, find missing keywords, and improve your resume to land more interviews.
+                  Resume feedback and career roadmaps for Indian engineering students. Free, and no
+                  sign-up.
                 </p>
               </div>
 
@@ -62,7 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <li><a href="/analyze-resume" className="hover:text-white transition-colors">Resume Scanner</a></li>
                   <li><a href="/analyze-resume" className="hover:text-white transition-colors">ATS Score Checker</a></li>
                   <li><a href="/analyze-resume" className="hover:text-white transition-colors">Keyword Analyzer</a></li>
-                  <li><a href="/analyze-resume" className="hover:text-white transition-colors">Resume Improver</a></li>
+                  <li><a href="/roadmap" className="hover:text-white transition-colors">Career Roadmap</a></li>
                 </ul>
               </div>
 
@@ -81,10 +87,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div>
                 <h4 className="font-semibold text-white text-sm mb-4">Company</h4>
                 <ul className="space-y-2.5 text-sm">
-                  <li><a href="/" className="hover:text-white transition-colors">About Us</a></li>
+                  <li><a href="/about" className="hover:text-white transition-colors">About</a></li>
                   <li><a href="/" className="hover:text-white transition-colors">Privacy Policy</a></li>
                   <li><a href="/" className="hover:text-white transition-colors">Terms of Service</a></li>
-                  <li><a href="/" className="hover:text-white transition-colors">Contact</a></li>
+                  <li><a href="/contact" className="hover:text-white transition-colors">Contact</a></li>
                 </ul>
               </div>
             </div>
